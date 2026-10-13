@@ -1,0 +1,13 @@
+{
+  "name": "building3dtiles-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gltf-transform/cli": "^4.2.1",
+    "@gltf-transform/core": "4.2.1",
+    "@gltf-transform/extensions": "4.2.1",
+    "@gltf-transform/functions": "4.2.1",
+    "draco3dgltf": "1.5.7",
+    "sharp": "^0.34.4"
+  }
+}

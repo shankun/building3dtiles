@@ -1,0 +1,13 @@
+target/
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+dist/
+.env
+*.log
+.DS_Store
+.idea/
+.vscode/
+.cursor/
+.codebuddy/

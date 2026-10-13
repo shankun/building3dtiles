@@ -1,0 +1,6 @@
+[postgresql]
+server = "localhost"
+port = 5432
+user = "sk"
+password = ""
+database = "BuildingGeoData"

@@ -1,0 +1,31 @@
+# building3dtiles
+
+整理PostgreSql数据库中的建筑轮廓几何数据(MultPolygon,4326格式)，拉伸成三维体，调用pg2b3dm 生成建筑物3dtiles，分为省、市、县(区)三层目录。
+-------------------------
+
+生成建筑素模步骤：
+## 一、安装postgis
+CREATE EXTENSION postgis;
+CREATE EXTENSION postgis_topology;
+CREATE EXTENSION postgis_sfcgal;
+select postgis_sfcgal_version();
+
+## 二、新建数据库
+> createdb -O 用户名 BuildingGeoData
+将数据导入postgresql：> psql -U 用户名 -d BuildingGeoData -f PostgreSqlScripts/building1.sql
+
+## 三、配置rust编译环境。
+
+## 四、配置数据库访问参数
+填写cityBuildings/connection.toml 中的用户名、密码。
+
+## 五、构建
+进入cityBuildings目录 cargo build --release
+
+## 六、将connection.toml和pg2b3dm放到可执行程序同目录。
+
+## 七、运行程序，输出目录是~/buildings
+
+
+pg2b3dm 的运行参数见：https://github.com/Geodan/pg2b3dm
+样式：https://github.com/Geodan/pg2b3dm/blob/master/styling.md

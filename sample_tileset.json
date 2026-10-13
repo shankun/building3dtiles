@@ -1,0 +1,32 @@
+{
+  "asset": {
+    "version": "1.1"
+  },
+  "geometricError": 500,
+  "root": {
+    "boundingVolume": {
+      "region": [-1.319, 0.698, -1.319, 0.698, 0, 100]
+    },
+    "geometricError": 200,
+    "children": [
+      {
+        "boundingVolume": {
+          "region": [-1.319, 0.698, -1.319, 0.698, 0, 50]
+        },
+        "geometricError": 50,
+        "content": {
+          "uri": "11/tileset.json"
+        }
+      },
+      {
+        "boundingVolume": {
+          "region": [-1.319, 0.698, -1.319, 0.698, 0, 50]
+        },
+        "geometricError": 50,
+        "content": {
+          "uri": "12/tileset.json"
+        }
+      }
+    ]
+  }
+}

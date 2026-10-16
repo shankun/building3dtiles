@@ -39,15 +39,56 @@ pub async fn process_county(
     // 1. 幂等重建三维模型表
     let sql = format!("DROP TABLE IF EXISTS {}", ident(&dst));
     client.execute(&sql, &[]).await?;
-    // ST_SnapToGrid 先吸附到 1e-9 度网格（约 0.1 毫米），消除近重合顶点组成的退化环
-    // ——SFCGAL 对这类环会报 "LineString is invalid : no length"，整条 UPDATE 都会回滚。
-    // 相邻重复点、以及闭合环上多出来的首尾重复点，都是同一个顶点：必须在 ST_MakeValid
-    // 之前去掉，否则 GEOS 会把它们报成自相交并改写轮廓。正常闭合所需的那一个首尾点保留。
+    // 轮廓里有两类数据，拉伸后会在 Cesium 里变成横在街面上的碎裂尖刺：
+    // 1. 相距约 1 厘米、或偏离墙线不到约 0.15 米的近共线顶点，三角化后是几十米长的薄片；
+    // 2. 窄于约 4 米、长几十米的扁条，以及从主体伸出去的同样窄的尖翼。
+    // 相邻重复点和多出来的首尾点必须在 ST_MakeValid 之前按约 1 厘米去掉，否则 GEOS 会把它们
+    // 当成自相交并改写轮廓。正常闭合所需的那一个首尾点保留。
+    // 开运算（先缩 2 米再胀回）削掉窄于 4 米的部分。整栋都被削没时：长边超过 20 米且至少是
+    // 短边 6 倍的扁条丢弃，小而紧凑的房屋保留简化后的轮廓。
     let sql = format!(
         "CREATE TABLE {} AS \
-         SELECT fid, ST_Force3D(ST_CollectionExtract(\
-         ST_MakeValid(ST_RemoveRepeatedPoints(ST_SnapToGrid(the_geom, 1e-9), 1e-9)), 3), 0) as geom, \
-         COALESCE(height, FLOOR(RANDOM() * 18) + 3) AS height FROM {} WHERE the_geom IS NOT NULL",
+         WITH cleaned AS ( \
+           SELECT fid, \
+             COALESCE(height, FLOOR(RANDOM() * 18) + 3) AS height, \
+             ST_CollectionExtract(ST_MakeValid(ST_RemoveRepeatedPoints( \
+               ST_SnapToGrid(ST_SetSRID(the_geom, \
+                 CASE WHEN ST_SRID(the_geom) = 0 THEN 4326 ELSE ST_SRID(the_geom) END), 1e-7), \
+               1e-7)), 3) AS g \
+           FROM {} WHERE the_geom IS NOT NULL \
+         ), \
+         simp AS ( \
+           SELECT fid, height, \
+             ST_CollectionExtract(ST_MakeValid(ST_SimplifyPreserveTopology(g, 1.5e-6)), 3) AS g \
+           FROM cleaned \
+           WHERE g IS NOT NULL AND NOT ST_IsEmpty(g) \
+         ), \
+         opened AS ( \
+           SELECT fid, height, g, \
+             ST_CollectionExtract(ST_MakeValid( \
+               ST_Buffer(ST_Buffer(g::geography, -2), 2)::geometry), 3) AS o \
+           FROM simp \
+         ) \
+         SELECT fid, ST_Force3D(geom, 0) AS geom, height FROM ( \
+           SELECT fid, height, \
+             CASE \
+               WHEN o IS NOT NULL AND NOT ST_IsEmpty(o) THEN o \
+               WHEN blade.long_m > 20 AND blade.long_m >= 6 * blade.short_m THEN NULL \
+               ELSE g \
+             END AS geom \
+           FROM opened \
+           LEFT JOIN LATERAL ( \
+             SELECT GREATEST(d1, d2) AS long_m, LEAST(d1, d2) AS short_m \
+             FROM ( \
+               SELECT \
+                 ST_Distance(ST_PointN(ring, 1)::geography, ST_PointN(ring, 2)::geography) AS d1, \
+                 ST_Distance(ST_PointN(ring, 2)::geography, ST_PointN(ring, 3)::geography) AS d2 \
+               FROM (SELECT ST_ExteriorRing(ST_OrientedEnvelope(g)) AS ring) env \
+               WHERE ST_GeometryType(ST_OrientedEnvelope(g)) = 'ST_Polygon' \
+             ) sides \
+           ) blade ON true \
+         ) chosen \
+         WHERE geom IS NOT NULL AND NOT ST_IsEmpty(geom)",
         ident(&dst),
         ident(&src)
     );
